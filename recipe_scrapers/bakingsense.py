@@ -1,4 +1,6 @@
 from ._abstract import AbstractScraper
+from ._grouping_utils import group_ingredients
+from ._utils import get_equipment
 
 
 class BakingSense(AbstractScraper):
@@ -6,23 +8,18 @@ class BakingSense(AbstractScraper):
     def host(cls):
         return "baking-sense.com"
 
-    def title(self):
-        return self.schema.title()
+    def ingredient_groups(self):
+        return group_ingredients(
+            self.ingredients(),
+            self.soup,
+            ".wprm-recipe-ingredient-group h4",
+            ".wprm-recipe-ingredient-group li",
+        )
 
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        return self.schema.image()
-
-    def ingredients(self):
-        return self.schema.ingredients()
-
-    def instructions(self):
-        return self.schema.instructions()
-
-    def ratings(self):
-        return self.schema.ratings()
+    def equipment(self):
+        equipment_items = [
+            equip.get_text()
+            for equip in self.soup.find_all("div", class_="wprm-recipe-equipment-name")
+            if equip.get_text()
+        ]
+        return get_equipment(equipment_items)

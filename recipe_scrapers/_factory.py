@@ -4,8 +4,8 @@ from ._utils import get_host_name
 
 class SchemaScraperFactory:
     class SchemaScraper(AbstractScraper):
-        def host(self) -> str:
-            return get_host_name(self.url)
+        def host(self) -> str:  # type: ignore [override]
+            return get_host_name(self.url) if self.url is not None else ""
 
         def title(self):
             return self.schema.title()
@@ -47,5 +47,5 @@ class SchemaScraperFactory:
             return self.schema.description()
 
     @classmethod
-    def generate(cls, url, **options):
-        return cls.SchemaScraper(url, **options)
+    def generate(cls, html, url):
+        return cls.SchemaScraper(html=html, url=url)

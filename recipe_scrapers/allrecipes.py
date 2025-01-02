@@ -7,10 +7,10 @@ class AllRecipes:
     def host(cls):
         return "allrecipes.com"
 
-    def __new__(cls, url, *args, **kwargs):
+    def __new__(cls, html, url):
         if AllRecipesUser.host() in url:
-            return AllRecipesUser(url, *args, **kwargs)
-        return AllRecipesCurated(url, *args, **kwargs)
+            return AllRecipesUser(html, url)
+        return AllRecipesCurated(html, url)
 
 
 class AllRecipesCurated(AbstractScraper):
@@ -18,55 +18,24 @@ class AllRecipesCurated(AbstractScraper):
     def host(cls):
         return "allrecipes.com"
 
-    def author(self):
-        # NB: In the schema.org 'Recipe' type, the 'author' property is a
-        # single-value type, not an ItemList.
-        # allrecipes.com seems to render the author property as a list
-        # containing a single item under some circumstances.
-        # In those cases, the SchemaOrg class will fail due to the unexpected
-        # type, and this method is called as a fallback.
-        # Rather than implement non-standard handling in SchemaOrg, this code
-        # provides a (hopefully temporary!) allrecipes-specific workaround.
-        author = self.schema.data.get("author")
-        if author and isinstance(author, list) and len(author) == 1:
-            author = author[0].get("name")
-        return author
-
-    def title(self):
-        return self.schema.title()
-
-    def description(self):
-        return self.schema.description()
-
-    def cook_time(self):
-        return self.schema.cook_time()
-
-    def prep_time(self):
-        return self.schema.prep_time()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        return self.schema.image()
-
     def ingredients(self):
-        return self.schema.ingredients()
+        def get_ingredient_text(item, key):
+            span = item.find("span", {"data-ingredient-" + key: True})
+            return normalize_string(span.text) if span else ""
 
-    def instructions(self):
-        return self.schema.instructions()
+        def match_ingredient_class(tag):
+            return tag.has_attr("class") and any(
+                cls.endswith("structured-ingredients__list-item")
+                for cls in tag["class"]
+            )
 
-    def ratings(self):
-        return self.schema.ratings()
+        ingredients_list = []
+        keys = ["quantity", "unit", "name"]
+        for item in self.soup.find_all(match_ingredient_class):
+            ingredient_parts = [get_ingredient_text(item, key) for key in keys]
+            ingredients_list.append(" ".join(filter(None, ingredient_parts)))
 
-    def cuisine(self):
-        return self.schema.cuisine()
-
-    def category(self):
-        return self.schema.category()
+        return ingredients_list
 
 
 class AllRecipesUser(AbstractScraper):
@@ -101,12 +70,15 @@ class AllRecipesUser(AbstractScraper):
 
     def total_time(self):
         if "total" in self.meta:
-            total_time = get_minutes(self.meta["total"], return_zero_on_not_found=True)
+            return get_minutes(self.meta.get("total") or 0)
         else:
-            total_time = get_minutes(self.meta.get("cook", 0)) + get_minutes(
-                self.meta.get("prep", 0)
-            )
-        return total_time
+            return self.prep_time() + self.cook_time()
+
+    def prep_time(self):
+        return get_minutes(self.meta.get("prep") or 0)
+
+    def cook_time(self):
+        return get_minutes(self.meta.get("cook") or 0)
 
     def yields(self):
         yield_data = self.meta.get("yield")

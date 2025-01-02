@@ -1,12 +1,7 @@
-# southernliving.com scraper
-# Written by G.D. Wallters
-# Freely released the code to recipe_scraper group
-# 9 February, 2020
-# =======================================================
-
+from recipe_scrapers._exceptions import SchemaOrgException
 
 from ._abstract import AbstractScraper
-from ._utils import get_minutes, get_yields, normalize_string
+from ._utils import get_yields
 
 
 class SouthernLiving(AbstractScraper):
@@ -14,40 +9,22 @@ class SouthernLiving(AbstractScraper):
     def host(cls):
         return "southernliving.com"
 
-    def title(self):
-        return self.schema.title()
-
-    def total_time(self):
-        return get_minutes(self.schema.total_time())
-
     def yields(self):
-        return get_yields(self.schema.yields())
+        try:
+            schema_yield = self.schema.yields()
+            if schema_yield:
+                return schema_yield
+        except SchemaOrgException:
+            pass
 
-    def image(self):
-        return self.schema.image()
-
-    def ingredients(self):
-        return self.schema.ingredients()
-
-    def instructions(self):
-        instructions = self.soup.find("ul", {"class": "instructions-section"}).findAll(
-            "li", {"class": "instructions-section-item"}
-        )
-        return "\n".join(
-            [
-                normalize_string(
-                    instruction.find("div", {"class": "paragraph"}).get_text()
+        for servings_div in self.soup.find_all(
+            "div", class_="mntl-recipe-details__item"
+        ):
+            label_text = servings_div.find(
+                "div", class_="mntl-recipe-details__label"
+            ).get_text(strip=True)
+            if label_text in ["Servings:", "Yield:"]:
+                servings_element = servings_div.find(
+                    "div", class_="mntl-recipe-details__value"
                 )
-                for instruction in instructions
-            ]
-        )
-
-    def ratings(self):
-        return self.schema.ratings()
-
-    def description(self):
-        des = self.soup.find(
-            "div",
-            attrs={"class": lambda e: e.startswith("recipe-summary") if e else False},
-        )
-        return normalize_string(des.get_text())
+                return get_yields(servings_element)

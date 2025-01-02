@@ -1,4 +1,5 @@
 from ._abstract import AbstractScraper
+from ._exceptions import StaticValueException
 from ._utils import get_yields
 
 
@@ -7,12 +8,12 @@ class AfghanKitchenRecipes(AbstractScraper):
     def host(cls):
         return "afghankitchenrecipes.com"
 
+    def site_name(self):
+        raise StaticValueException(return_value="Afghan Kitchen Recipes")
+
     def author(self):
         given_name = self.soup.find("h5", {"class": "given-name"})
         return given_name and given_name.find("a", {"rel": "author"}).get_text()
-
-    def title(self):
-        return self.schema.title()
 
     def total_time(self):
         ready_in = self.soup.find("li", {"class": "ready-in"})
@@ -29,9 +30,6 @@ class AfghanKitchenRecipes(AbstractScraper):
         if not servings:
             return
         return get_yields(servings)
-
-    def image(self):
-        return self.schema.image()
 
     def ingredients(self):
         ingredient_elements = self.soup.findAll("li", {"class": "ingredient"})

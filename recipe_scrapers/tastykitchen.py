@@ -1,5 +1,6 @@
 from ._abstract import AbstractScraper
-from ._utils import get_minutes, get_yields, normalize_string
+from ._exceptions import StaticValueException
+from ._utils import normalize_string
 
 
 class TastyKitchen(AbstractScraper):
@@ -10,20 +11,13 @@ class TastyKitchen(AbstractScraper):
     def title(self):
         return self.soup.find("h1", {"itemprop": "name"}).get_text()
 
-    def total_time(self):
-        return sum(
-            [
-                get_minutes(self.soup.find("time", {"itemprop": "prepTime"})),
-                get_minutes(self.soup.find("time", {"itemprop": "cookTime"})),
-            ]
+    def site_name(self):
+        current_selection = next(
+            iter(self.soup.select("div.tpw-network a.selected")), None
         )
-
-    def yields(self):
-        return get_yields(self.soup.find("span", {"itemprop": "yield"}))
-
-    def image(self):
-        image = self.soup.find("img", {"class": "the_recipe_image", "src": True})
-        return image["src"] if image else None
+        if not current_selection:
+            raise StaticValueException(return_value="Tasty Kitchen")
+        return current_selection.text
 
     def ingredients(self):
         ingredients = self.soup.find("ul", {"class": "ingredients"}).findAll("li")

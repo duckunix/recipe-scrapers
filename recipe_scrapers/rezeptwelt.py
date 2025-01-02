@@ -1,5 +1,5 @@
 from ._abstract import AbstractScraper
-from ._exceptions import SchemaOrgException
+from ._exceptions import SchemaOrgException, StaticValueException
 from ._utils import normalize_string
 
 
@@ -8,40 +8,20 @@ class Rezeptwelt(AbstractScraper):
     def host(cls):
         return "rezeptwelt.de"
 
+    def site_name(self):
+        raise StaticValueException(return_value="Rezeptwelt")
+
     def author(self):
         return normalize_string(self.soup.find("span", {"id": "viewRecipeAuthor"}).text)
 
-    def title(self):
-        return self.soup.find("meta", {"property": "og:title"})["content"]
-
-    def category(self):
-        return self.schema.category()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        return self.schema.image()
-
-    def ingredients(self):
-        return self.schema.ingredients()
-
     def instructions(self):
-        content = self.soup.find("ol", {"itemprop": "recipeInstructions"}).findAll(
-            "div", {"itemprop": "itemListElement"}
+        container = self.soup.find("div", id="preparationSteps").find(
+            "span", itemprop="text"
         )
-        res = ""
-        for i in content:
-            steps = i.findAll("span", {"itemprop": "text"})
-            for step in steps:
-                res += normalize_string(step.text) + "\n"
-        return res
-
-    def ratings(self):
-        return self.schema.ratings()
+        instructions = [
+            normalize_string(paragraph.text) for paragraph in container.find_all("p")
+        ]
+        return "\n".join(filter(None, instructions))
 
     def cuisine(self):
         try:

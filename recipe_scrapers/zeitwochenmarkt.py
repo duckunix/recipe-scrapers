@@ -5,8 +5,8 @@ from ._utils import normalize_string
 
 
 class ZeitWochenmarkt(AbstractScraper):
-    def __init__(self, url, **kwargs):
-        AbstractScraper.__init__(self, url, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         data = extruct.extract(
             self.soup.prettify(), syntaxes=["json-ld"], errors="log", uniform=True
         )
@@ -18,25 +18,24 @@ class ZeitWochenmarkt(AbstractScraper):
     def host(cls):
         return "zeit.de"
 
-    def title(self):
-        return self.schema.title()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        return self.schema.image()
+    def author(self):
+        return self.soup.find("a", {"rel": "author"}).get_text().strip()
 
     def ingredients(self):
-        class_name = "recipe-list-collection__special-ingredient"
-        special_ingredients = [
-            normalize_string(item.text)
-            for item in self.soup.find_all("p", {"class": class_name})
-        ]
-        return special_ingredients + self.schema.ingredients()
+        ingredients = []
+        for div_element in self.soup.select(".recipe-list-collection"):
+            special_ingredients = div_element.select(
+                ".recipe-list-collection__special-ingredient"
+            )
+            ingredients.extend(normalize_string(p.text) for p in special_ingredients)
+
+            list_items = div_element.select(".recipe-list-collection__list li")
+            ingredients.extend(
+                normalize_string(li.get_text(strip=True, separator=" "))
+                for li in list_items
+            )
+
+        return ingredients
 
     def instructions(self):
         class_name = "article__subheading article__subheading--recipe article__item"
@@ -48,6 +47,3 @@ class ZeitWochenmarkt(AbstractScraper):
                 for item in subset.find_all_next("p", {"class": class_name})
             ]
         )
-
-    def ratings(self):
-        return self.schema.ratings()

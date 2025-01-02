@@ -1,4 +1,5 @@
 from ._abstract import AbstractScraper
+from ._grouping_utils import group_ingredients
 
 
 class SteamyKitchen(AbstractScraper):
@@ -6,27 +7,13 @@ class SteamyKitchen(AbstractScraper):
     def host(cls):
         return "steamykitchen.com"
 
-    def author(self):
-        return self.schema.author()
-
-    def title(self):
-        return self.schema.title()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        # Recipe section and schema have no image so stealing from the page
-        return self.soup.find("img")["src"]
-
-    def ingredients(self):
-        return self.schema.ingredients()
-
-    def instructions(self):
-        return self.schema.instructions()
+    def ingredient_groups(self):
+        return group_ingredients(
+            self.ingredients(),
+            self.soup,
+            ".wprm-recipe-ingredient-group h4",
+            ".wprm-recipe-ingredient",
+        )
 
     def ratings(self):
         # Schema has no ratings and I can't see any near the recipe

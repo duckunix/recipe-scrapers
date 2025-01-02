@@ -1,6 +1,8 @@
-# generate generates a new recipe scraper.
+# generate.py generates a new recipe scraper.
 import ast
+import json
 import sys
+from pathlib import Path
 
 import requests
 
@@ -12,7 +14,8 @@ template_host_name = "example.com"
 
 
 def generate_scraper(class_name, host_name):
-    with open("templates/scraper.py") as source:
+    template_path = Path("templates/scraper.py")
+    with template_path.open() as source:
         code = source.read()
         program = ast.parse(code)
 
@@ -21,28 +24,36 @@ def generate_scraper(class_name, host_name):
             if not state.step(node):
                 break
 
-        output = f"recipe_scrapers/{class_name.lower()}.py"
-        with open(output, "w") as target:
-            target.write(state.result())
+        output = Path(f"recipe_scrapers/{class_name.lower()}.py")
+        output.write_text(state.result())
 
 
 def generate_scraper_test(class_name, host_name):
-    with open("templates/test_scraper.py") as source:
-        code = source.read()
-        program = ast.parse(code)
+    test_data_dir = Path(f"tests/test_data/{host_name}")
+    test_data_dir.mkdir(parents=True, exist_ok=True)
 
-        state = GenerateTestScraperState(class_name, host_name, code)
-        for node in ast.walk(program):
-            if not state.step(node):
-                break
+    testjson = {
+        "host": host_name,
+        "canonical_url": "",
+        "site_name": "",
+        "author": "",
+        "language": "",
+        "title": "",
+        "ingredients": "",
+        "instructions_list": "",
+        "total_time": "",
+        "yields": "",
+        "image": "",
+        "description": "",
+    }
 
-        output = f"tests/test_{class_name.lower()}.py"
-        with open(output, "w") as target:
-            target.write(state.result())
+    output = test_data_dir / f"{class_name.lower()}.json"
+    output.write_text(json.dumps(testjson, indent=2))
 
 
 def init_scraper(class_name):
-    with open("recipe_scrapers/__init__.py", "r+") as source:
+    init_file = Path("recipe_scrapers/__init__.py")
+    with init_file.open("r+") as source:
         code = source.read()
         program = ast.parse(code)
 
@@ -56,10 +67,10 @@ def init_scraper(class_name):
         source.truncate()
 
 
-def generate_test_data(class_name, content):
-    output = f"tests/test_data/{class_name.lower()}.testhtml"
-    with open(output, "wb") as target:
-        target.write(content)
+def generate_test_data(class_name, host_name, content):
+    output = Path(f"tests/test_data/{host_name}/{class_name.lower()}.testhtml")
+    with output.open("w", encoding="utf-8") as target:
+        target.write(content.decode(encoding="utf-8"))
 
 
 class ScraperState:
@@ -98,56 +109,6 @@ class GenerateScraperState(ScraperState):
         return True
 
 
-class GenerateTestScraperState(ScraperState):
-    def __init__(self, class_name, host_name, code):
-        super().__init__(code)
-        self.class_name = class_name
-        self.host_name = host_name
-        self.module_name = class_name.lower()
-        self.template_module_name = template_class_name.lower()
-
-    def step(self, node):
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.module == f"recipe_scrapers.{self.template_module_name}"
-        ):
-            offset = self._offset(node)
-            module_name_segment_end = self.code.index(self.template_module_name, offset)
-            self._replace(
-                self.module_name,
-                module_name_segment_end,
-                len(self.template_module_name),
-            )
-            class_name_segment_end = self.code.index(template_class_name, offset)
-            self._replace(
-                self.class_name, class_name_segment_end, len(template_class_name)
-            )
-
-        if (
-            isinstance(node, ast.ClassDef)
-            and node.name == f"Test{template_class_name}Scraper"
-        ):
-            offset = self._offset(node)
-            segment_end = self.code.index(template_class_name, offset)
-            self._replace(self.class_name, segment_end, len(template_class_name))
-
-        if (
-            isinstance(node, ast.Assign)
-            and isinstance(node.value, ast.Name)
-            and node.value.id == template_class_name
-        ):
-            offset = self._offset(node)
-            segment_end = self.code.index(template_class_name, offset)
-            self._replace(self.class_name, segment_end, len(template_class_name))
-
-        if isinstance(node, ast.Constant) and node.value == template_host_name:
-            offset = self._offset(node)
-            segment_end = self.code.index(template_host_name, offset)
-            self._replace(self.host_name, segment_end, len(template_host_name))
-
-        return True
-
-
 class InitScraperState(ScraperState):
     def __init__(self, class_name, code):
         super().__init__(code)
@@ -168,8 +129,8 @@ class InitScraperState(ScraperState):
         if isinstance(node, ast.Module) or isinstance(node, ast.Import):
             return True
 
-        if isinstance(node, ast.ImportFrom):
-            if node.module > self.module_name and node.level > 0:
+        if isinstance(node, ast.ImportFrom) and node.level > 0:
+            if node.module > self.module_name:
                 offset = self._offset(node)
                 import_statement = (
                     f"\nfrom .{self.module_name} import {self.class_name}"
@@ -235,7 +196,7 @@ class Replacer:
 
     def result(self):
         code = self.code
-        for (replacement_text, start, length) in self.replacements:
+        for replacement_text, start, length in self.replacements:
             start = start + self.delta
             end = start + length
             code = code[:start] + replacement_text + code[end:]
@@ -257,9 +218,12 @@ def get_line_offsets(code):
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: generate.py ScraperClassName url")
-        exit(1)
+    if len(sys.argv) != 3:
+        print("Usage: python generate.py <ScraperClassName> <url>")
+        print(
+            "Example: python generate.py ExampleClassName https://www.example.com/recipe/12345/example-recipe/"
+        )
+        sys.exit(1)
 
     class_name = sys.argv[1]
     url = sys.argv[2]
@@ -268,8 +232,10 @@ def main():
 
     generate_scraper(class_name, host_name)
     generate_scraper_test(class_name, host_name)
-    generate_test_data(class_name, testhtml)
+    generate_test_data(class_name, host_name, testhtml)
     init_scraper(class_name)
+
+    print(f"Successfully generated scraper for {class_name} ({host_name})")
 
 
 if __name__ == "__main__":

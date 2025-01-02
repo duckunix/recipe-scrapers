@@ -1,4 +1,5 @@
 from ._abstract import AbstractScraper
+from ._utils import normalize_string
 
 
 class JustOneCookbook(AbstractScraper):
@@ -6,20 +7,15 @@ class JustOneCookbook(AbstractScraper):
     def host(cls):
         return "justonecookbook.com"
 
-    def title(self):
-        return self.schema.title()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def image(self):
-        return self.schema.image()
-
     def ingredients(self):
-        return self.schema.ingredients()
-
-    def instructions(self):
-        return self.schema.instructions()
+        lis = self.soup.find_all("li", {"class": "wprm-recipe-ingredient"})
+        ingredients = []
+        for ingredient in lis:
+            spans = ingredient.findAll(
+                "span", class_=lambda x: x != "wprm-checkbox-container"
+            )[1:]
+            ingredient = []
+            for span in spans:
+                ingredient.append(normalize_string(span.get_text()))
+            ingredients.append(" ".join(ingredient))
+        return ingredients

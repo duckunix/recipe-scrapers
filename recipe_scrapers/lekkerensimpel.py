@@ -1,4 +1,7 @@
+import re
+
 from ._abstract import AbstractScraper
+from ._exceptions import ElementNotFoundInHtml, SchemaOrgException
 from ._utils import normalize_string
 
 
@@ -8,48 +11,59 @@ class LekkerEnSimpel(AbstractScraper):
         return "lekkerensimpel.com"
 
     def author(self):
-        return self.schema.author()
+        return self.soup.find("meta", {"name": "author"})["content"]
 
     def title(self):
         title = self.soup.find("h1", {"class": "hero__title"}).text
         return normalize_string(title)
-
-    def category(self):
-        return self.schema.category()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
 
     def image(self):
         image = self.soup.find("meta", {"property", "og:image"})
         return image["content"] if image else None
 
     def ingredients(self):
-        ingredients = self.soup.find("div", {"class": "recipe__necessities"}).find_all(
-            "li"
-        )
+        if self.schema.ingredients():
+            return self.schema.ingredients()
+
+        ingredient_header = self.soup.find("strong", string="Benodigdheden:")
+        if ingredient_header:
+            ingredients = ingredient_header.parent.parent.find_next("ul").findChildren(
+                "li"
+            )
+            return [normalize_string(i.get_text()) for i in ingredients]
+
+        ingredient_header = self.soup.find("p", string="Benodigdheden:")
+        if ingredient_header:
+            ingredients = ingredient_header.parent.find_next("ul").findChildren("li")
+            return [normalize_string(i.get_text()) for i in ingredients]
+
+        raise ElementNotFoundInHtml("Could not find ingredients.")
+
+    def process_ingredients(self, container):
+        ingredients = container.findChildren("li")
+
         return [normalize_string(i.get_text()) for i in ingredients]
 
     def instructions(self):
-        instructions = self.soup.find("div", {"class": "entry__content"}).find_all("p")
-        return "\n".join(
-            [normalize_string(i.get_text()) for i in instructions]
-            if instructions
-            else None
-        )
+        if self.schema.instructions():
+            return self.schema.instructions()
 
-    def ratings(self):
-        return self.schema.ratings()
+        instructions_head = self.soup.find("strong", string="Bereidingswijze:")
+        if instructions_head:
+            return instructions_head.parent.find_next("p")
 
-    def cuisine(self):
-        return self.schema.cuisine()
+        instructions_head = self.soup.find(string=re.compile("Bereidingswijze"))
+        if instructions_head.parent:
+            return instructions_head.parent.parent.text
+
+        raise ElementNotFoundInHtml("Could not find instructions.")
 
     def description(self):
-        description = self.soup.find("div", {"class": "entry__content"}).find("p").text
-        return normalize_string(description) if description else None
+        try:
+            return self.schema.description()
+        except SchemaOrgException:
+            description = self.soup.find("meta", {"name": "description"})
+            return description["content"] if description else None
 
     def language(self):
-        return "nl-NL"
+        return super().language()

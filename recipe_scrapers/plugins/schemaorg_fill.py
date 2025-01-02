@@ -1,6 +1,7 @@
 import functools
 import logging
 
+from recipe_scrapers._exceptions import FillPluginException, RecipeSchemaNotFound
 from recipe_scrapers.settings import settings
 
 from ._interface import PluginInterface
@@ -13,13 +14,15 @@ class SchemaOrgFillPlugin(PluginInterface):
     """
     If any of the methods listed is invoked on a scraper class
     that happens not to be implement and Schema.org is available
-    attempt to return the result from the schema available.
+    attempt to return the results from the schema available.
     """
 
     run_on_hosts = ("*",)
     run_on_methods = (
         "author",
+        "site_name",
         "title",
+        "category",
         "total_time",
         "yields",
         "image",
@@ -30,6 +33,14 @@ class SchemaOrgFillPlugin(PluginInterface):
         "links",
         "language",
         "nutrients",
+        "cooking_method",
+        "cuisine",
+        "description",
+        "cook_time",
+        "prep_time",
+        "keywords",
+        "ratings_count",
+        "dietary_restrictions",
     )
 
     @classmethod
@@ -44,11 +55,13 @@ class SchemaOrgFillPlugin(PluginInterface):
             )
             try:
                 return decorated(self, *args, **kwargs)
-            except NotImplementedError as e:
+            except (FillPluginException, NotImplementedError) as e:
                 function = getattr(self.schema, decorated.__name__)
-                if self.schema.data and function:
+                if not self.schema.data:
+                    raise RecipeSchemaNotFound(url=self.url)
+                if function:
                     logger.info(
-                        f"{class_name}.{method_name}() seems to not be implemented but .schema is available! Attempting to return result from .schema."
+                        f"{class_name}.{method_name}() seems to not be implemented but .schema is available! Attempting to return result from SchemaOrg."
                     )
                     return function(*args, **kwargs)
                 else:

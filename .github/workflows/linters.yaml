@@ -2,26 +2,22 @@ name: linters
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, v14 ]
   pull_request:
-    branches:
-      - main
+    branches: [ main, v14 ]
+    types: [ opened, synchronize, reopened ]
 
 jobs:
   linters:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: black and flake checks
-        run: |
-          black --check .
-          flake8 --count .
+          python-version: "3.12"
+          cache: pip
+      - name: Install linters related packages
+        run: pip install ".[linters]"
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files

@@ -1,4 +1,5 @@
 from ._abstract import AbstractScraper
+from ._exceptions import FieldNotProvidedByWebsiteException
 from ._utils import get_yields, normalize_string
 
 
@@ -7,13 +8,8 @@ class KwestiaSmaku(AbstractScraper):
     def host(cls):
         return "kwestiasmaku.com"
 
-    def author(self):
-        return normalize_string(
-            self.soup.find("span", {"itemprop": "author"}).get_text()
-        )
-
-    def title(self):
-        return normalize_string(self.soup.find("div", {"itemprop": "name"}).get_text())
+    def total_time(self):
+        raise FieldNotProvidedByWebsiteException(return_value=None)
 
     def yields(self):
         return get_yields(
@@ -38,6 +34,3 @@ class KwestiaSmaku(AbstractScraper):
             "div", {"class": "field-name-field-przygotowanie"}
         ).find_all("li")
         return "\n".join([normalize_string(i.get_text()) for i in instructions])
-
-    def ratings(self):
-        return float(self.soup.find("span", {"itemprop": "ratingValue"}).get_text())

@@ -3,23 +3,11 @@ from ._abstract import AbstractScraper
 
 class FoodNetwork(AbstractScraper):
     @classmethod
-    def host(cls):
-        return "foodnetwork.com"
-
-    def title(self):
-        return self.schema.title()
+    def host(cls, domain="co.uk"):
+        return f"foodnetwork.{domain}"
 
     def author(self):
+        return self.schema.data.get("copyrightNotice") or self.schema.author()
+
+    def site_name(self):
         return self.schema.author()
-
-    def total_time(self):
-        return self.schema.total_time()
-
-    def yields(self):
-        return self.schema.yields()
-
-    def ingredients(self):
-        return self.schema.ingredients()
-
-    def instructions(self):
-        return self.schema.instructions()
